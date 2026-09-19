@@ -68,7 +68,7 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
       <ol id="rows">
         {countries.map((c) => (
           <li data-iso3={c.iso3} data-name={c.name.toLowerCase()} data-ratio={c.ratio} class:list={{ high: c.ratio > 1, current: c.iso3 === 'LKA' }}>
-            <a href={`/country/${c.slug}/`}>
+            <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/country/${c.slug}/`}>
               <span class="name">{c.name}</span>
               <span class="bar"><i style={`width:${Math.min(c.ratio, 1.5) / 1.5 * 100}%`}></i></span>
               <span class="ratio">{c.ratio.toFixed(2)}</span>

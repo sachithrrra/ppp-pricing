@@ -29,6 +29,12 @@ Rounding is `'none'`, `'currency'` (cents) or `'pretty'` (4.49, 43, 135).
 `src/pages/index.astro` is the whole site; it imports `index.js` and `data.json`
 directly, so the browser runs the same code as `npm test`.
 
+## Deploy
+
+Pushes to `master` build and deploy automatically via `.github/workflows/deploy.yml`
+(GitHub Actions → GitHub Pages). In the repo's **Settings → Pages**, set **Source** to
+**GitHub Actions**. The site is served at `https://sachithrrra.github.io/ppp-pricing/`.
+
 ## License
 
 MIT. Data © World Bank, CC BY 4.0.

@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://ppp.sachithra.dev',
+  site: 'https://sachithrrra.github.io',
+  base: '/ppp-pricing',
 });
