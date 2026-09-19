@@ -21,7 +21,7 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
 </head>
 <body>
   <header class="top">
-    <span class="mark">ppp-pricing</span>
+    <a href={import.meta.env.BASE_URL} class="mark">ppp-pricing</a>
   </header>
 
   <main>
@@ -98,11 +98,14 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
   </main>
 
   <footer>
-    <p>Built by <a href="https://github.com/sachithrrra">sachithrrra</a>. MIT licensed. Data © World Bank, CC BY 4.0. <a href="https://github.com/sachithrrra/ppp-pricing">GitHub</a></p>
+    <p>Made by <a href="https://sach.cc">Sachithra Pushpawela</a>. Data © World Bank, CC BY 4.0. <a href="https://github.com/sachithrrra/ppp-pricing">GitHub</a></p>
   </footer>
 
   <script>
-    import ppp from '../../index.js';
+    import { createPpp } from '../lib/ppp-core.js';
+    import { data as pppData } from '../lib/countries.js';
+
+    const ppp = createPpp(pppData);
 
     const $ = (id) => document.getElementById(id);
     const price = $('price'), country = $('country'), smoothing = $('smoothing'), result = $('result');

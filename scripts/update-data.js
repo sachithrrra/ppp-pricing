@@ -3,6 +3,7 @@ import lookup from 'country-code-lookup';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { stringify } from 'smol-toml';
 import XLSX from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,7 +15,8 @@ const __dirname = path.dirname(__filename);
 // This replicates the retired PA.NUS.PPPC.RF indicator (price level ratio).
 const PPP_URL  = 'https://api.worldbank.org/v2/country/all/indicator/PA.NUS.PPP?downloadformat=excel';
 const FCRF_URL = 'https://api.worldbank.org/v2/country/all/indicator/PA.NUS.FCRF?downloadformat=excel';
-const OUTPUT_FILE = path.join(__dirname, '../data.json');
+const OUTPUT_FILE = path.join(__dirname, '../data.toml');
+const HISTORY_FILE = path.join(__dirname, '../data/history.toml');
 
 async function fetchRows(url) {
     const response = await axios.get(url, { responseType: 'arraybuffer', maxRedirects: 5 });
@@ -23,14 +25,19 @@ async function fetchRows(url) {
     return XLSX.utils.sheet_to_json(sheet, { range: 3 });
 }
 
-function latestValue(row) {
-    const years = Object.keys(row).filter(k => /^\d{4}$/.test(k)).sort().reverse();
-    for (const year of years) {
-        if (row[year] !== '' && row[year] !== undefined && row[year] !== null) {
-            return parseFloat(row[year]);
-        }
+function yearSeries(row) {
+    const series = {};
+    for (const key of Object.keys(row)) {
+        if (!/^\d{4}$/.test(key)) continue;
+        if (row[key] === '' || row[key] === undefined || row[key] === null) continue;
+        series[key] = parseFloat(row[key]);
     }
-    return null;
+    return series;
+}
+
+function latestValue(series) {
+    const years = Object.keys(series).sort().reverse();
+    return years.length ? series[years[0]] : null;
 }
 
 async function downloadAndProcess() {
@@ -41,39 +48,49 @@ async function downloadAndProcess() {
             fetchRows(FCRF_URL),
         ]);
 
-        // Build exchange rate map: ISO3 -> latest value
-        const fxMap = {};
+        // Build exchange rate time series: ISO3 -> { year: value }
+        const fxSeries = {};
         fxRows.forEach(row => {
             const code = row['Country Code'];
             if (!code) return;
-            const val = latestValue(row);
-            if (val !== null) fxMap[code] = val;
+            fxSeries[code] = yearSeries(row);
         });
 
         console.log('Computing price level ratios (PPP / exchange rate)...');
         const pppData = {};
+        const history = {};
 
         pppRows.forEach(row => {
             const countryCode = row['Country Code'];
             if (!countryCode) return;
 
-            const ppp = latestValue(row);
-            const fx  = fxMap[countryCode];
+            const pppSeries = yearSeries(row);
+            const fx = fxSeries[countryCode] || {};
 
-            if (ppp === null || fx === undefined || fx === 0) return;
+            const ratios = {};
+            for (const year of Object.keys(pppSeries)) {
+                const fxVal = fx[year];
+                if (fxVal === undefined || fxVal === 0) continue;
+                ratios[year] = pppSeries[year] / fxVal;
+            }
 
-            const ratio = ppp / fx;
+            const latest = latestValue(ratios);
+            if (latest === null) return;
 
-            pppData[countryCode] = ratio;
+            pppData[countryCode] = latest;
+            history[countryCode] = ratios;
 
             const country = lookup.byIso(countryCode);
             if (country) {
-                pppData[country.iso2] = ratio;
+                pppData[country.iso2] = latest;
             }
         });
 
-        fs.writeFileSync(OUTPUT_FILE, JSON.stringify(pppData, null, 2));
+        fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
+        fs.writeFileSync(OUTPUT_FILE, stringify(pppData));
+        fs.writeFileSync(HISTORY_FILE, stringify(history));
         console.log(`Data updated successfully! Saved to ${OUTPUT_FILE}`);
+        console.log(`Time series saved to ${HISTORY_FILE}`);
         console.log(`Total countries processed: ${Object.keys(pppData).length / 2}`);
 
     } catch (error) {
