@@ -1,5 +1,5 @@
 {
-  "name": "ppp",
+  "name": "ppp-pricing",
   "version": "1.0.2",
   "description": "What a US-dollar price should cost in every country, adjusted for purchasing power.",
   "type": "module",

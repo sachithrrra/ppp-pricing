@@ -1,16 +1,7 @@
 ---
-import lookup from 'country-code-lookup';
-import data from '../../data.json';
+import { getCountries } from '../lib/countries.js';
 
-// data.json holds each country twice (ISO3 + ISO2); keep ISO3 and drop World Bank aggregates.
-const countries = Object.keys(data)
-  .filter((k) => k.length === 3)
-  .map((iso3) => {
-    const c = lookup.byIso(iso3);
-    return c && { iso3, iso2: c.iso2, name: c.country, continent: c.continent, ratio: data[iso3] };
-  })
-  .filter(Boolean)
-  .sort((a, b) => a.ratio - b.ratio);
+const countries = getCountries();
 
 const byName = [...countries].sort((a, b) => a.name.localeCompare(b.name));
 const median = countries[Math.floor(countries.length / 2)].ratio;
@@ -25,32 +16,39 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
   <meta name="description" content="What a US-dollar price should cost in every country, adjusted for purchasing power. Live calculator and full World Bank price-level data." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Valley+Sans:wght@300..700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:," />
 </head>
 <body>
   <header class="top">
-    <span class="mark">ppp</span>
-    <a href="https://github.com/sachithrrra/ppp">Source on GitHub</a>
+    <span class="mark">ppp-pricing</span>
   </header>
 
   <main>
     <section class="hero">
       <p class="sentence">
         A <span class="field money"><span aria-hidden="true">$</span><input id="price" type="number" inputmode="decimal" min="0" step="1" value="10" aria-label="Price in US dollars" /></span>
-        product should cost about <output id="result" for="price country smoothing">$4.31</output>{" "}
-        in <span class="field"><select id="country" aria-label="Country">
-          {byName.map((c) => <option value={c.iso3} selected={c.iso3 === 'LKA'}>{c.name}</option>)}
-        </select></span>.
+        product should cost about <output id="result" for="price country smoothing">$2.66</output>{" "}
+        in <span class="field"><span class="dd">
+          <button type="button" id="country-btn" aria-haspopup="listbox" aria-expanded="false">{byName.find((c) => c.iso3 === 'LKA').name}</button>
+          <select id="country" hidden>
+            {byName.map((c) => <option value={c.iso3} selected={c.iso3 === 'LKA'}>{c.name}</option>)}
+          </select>
+          <ul id="country-list" class="country-list" role="listbox" hidden>
+            {byName.map((c) => <li role="option" data-iso3={c.iso3} aria-selected={c.iso3 === 'LKA'}>{c.name}</li>)}
+          </ul>
+        </span></span>.
       </p>
+      <span id="ruler" class="sentence" aria-hidden="true"></span>
       <p class="why" id="why">
         Goods in <b data-name>Sri Lanka</b> cost about <b data-pct>27%</b> of what they cost in the United States.
       </p>
 
       <div class="controls">
         <label class="ctl">
-          <span>Smoothing <b id="smoothing-value">0.2</b></span>
-          <input id="smoothing" type="range" min="0" max="1" step="0.05" value="0.2" />
-          <small>0 is the raw parity price, 1 is your original price.</small>
+          <span>Smoothing <b id="smoothing-value">0</b></span>
+          <input id="smoothing" type="range" min="0" max="1" step="0.05" value="0" />
+          <small>Off by default. Raise it to pull prices back toward your original.</small>
         </label>
         <fieldset class="ctl">
           <legend>Rounding</legend>
@@ -70,12 +68,12 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
       <ol id="rows">
         {countries.map((c) => (
           <li data-iso3={c.iso3} data-name={c.name.toLowerCase()} data-ratio={c.ratio} class:list={{ high: c.ratio > 1, current: c.iso3 === 'LKA' }}>
-            <button type="button">
+            <a href={`/country/${c.slug}/`}>
               <span class="name">{c.name}</span>
               <span class="bar"><i style={`width:${Math.min(c.ratio, 1.5) / 1.5 * 100}%`}></i></span>
               <span class="ratio">{c.ratio.toFixed(2)}</span>
               <span class="price"></span>
-            </button>
+            </a>
           </li>
         ))}
       </ol>
@@ -91,20 +89,16 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
         </div>
         <div>
           <h3>Smoothing</h3>
-          <p>The raw ratio is usually too aggressive for software pricing, so the site (and the library it was built from) blends it back toward the original price:</p>
+          <p>An optional blend back toward the original price, for when the raw ratio feels too aggressive:</p>
           <p class="formula">fair = price × (ratio + (1 − ratio) × smoothing)</p>
-          <p>At 0.2, a country with ratio 0.27 gets a price of 0.42× instead of 0.27×.</p>
-        </div>
-        <div>
-          <h3>Data</h3>
-          <p>Latest available year per country, refreshed with <code>npm run update-data</code> from the <a href="https://data.worldbank.org/indicator/PA.NUS.PPP">World Bank API</a>. The JavaScript that computes each price is the same file this page ships to your browser.</p>
+          <p>Off by default (0), so every number on this page is the raw ratio × your price. At 0.2, a country with ratio 0.27 would get 0.42× instead.</p>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>Built by <a href="https://github.com/sachithrrra">sachithrrra</a>. MIT licensed. Data © World Bank, CC BY 4.0.</p>
+    <p>Built by <a href="https://github.com/sachithrrra">sachithrrra</a>. MIT licensed. Data © World Bank, CC BY 4.0. <a href="https://github.com/sachithrrra/ppp-pricing">GitHub</a></p>
   </footer>
 
   <script>
@@ -113,8 +107,16 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
     const $ = (id) => document.getElementById(id);
     const price = $('price'), country = $('country'), smoothing = $('smoothing'), result = $('result');
     const why = $('why'), rows = $('rows'), filter = $('filter');
+    const countryBtn = $('country-btn'), countryList = $('country-list');
     const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-    const exact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+    const exact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 6 });
+
+    // Size the inline fields to their text by measuring it in a hidden span with the same font.
+    const ruler = document.getElementById("ruler");
+    function fit(el, text) {
+      ruler.textContent = text;
+      el.style.width = ruler.offsetWidth + 4 + "px";
+    }
 
     function render() {
       const p = Number(price.value) || 0;
@@ -124,9 +126,9 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
       const fmt = r === 'none' ? exact : money;
 
       result.textContent = fmt.format(ppp(p, iso3, s, r));
-      price.style.width = Math.max(1, price.value.length) + "ch";
-      country.style.width = country.selectedOptions[0].text.length * 0.42 + 0.4 + "em";
-      $('smoothing-value').textContent = s.toFixed(2).replace(/0$/, '');
+      fit(price, price.value);
+      countryBtn.textContent = country.selectedOptions[0].text;
+      $('smoothing-value').textContent = String(s);
       why.querySelector('[data-name]').textContent = country.selectedOptions[0].text;
       why.querySelector('[data-pct]').textContent = Math.round(ppp.factor(iso3) * 100) + '%';
 
@@ -138,13 +140,37 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
 
     document.querySelectorAll('#price, #country, #smoothing, input[name=rounding]').forEach((el) => el.addEventListener('input', render));
 
-    rows.addEventListener('click', (e) => {
+    function closeCountryList() {
+      countryList.hidden = true;
+      countryBtn.setAttribute('aria-expanded', 'false');
+    }
+    countryBtn.addEventListener('click', () => {
+      const open = countryList.hidden;
+      if (open) {
+        const r = countryBtn.getBoundingClientRect();
+        countryList.style.top = r.bottom + 6 + 'px';
+        countryList.style.left = r.left + 'px';
+      }
+      countryList.hidden = !open;
+      countryBtn.setAttribute('aria-expanded', String(open));
+      if (open) countryList.querySelector(`[data-iso3="${country.value}"]`)?.scrollIntoView({ block: 'nearest' });
+    });
+    window.addEventListener('scroll', (e) => { if (!countryList.contains(e.target)) closeCountryList(); }, true);
+    countryList.addEventListener('click', (e) => {
       const li = e.target.closest('li');
       if (!li) return;
+      countryList.querySelector('[aria-selected=true]')?.setAttribute('aria-selected', 'false');
+      li.setAttribute('aria-selected', 'true');
       country.value = li.dataset.iso3;
       render();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      closeCountryList();
+      countryBtn.focus();
     });
+    document.addEventListener('click', (e) => {
+      if (!countryList.hidden && !e.target.closest('.field')) closeCountryList();
+    });
+    countryBtn.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCountryList(); });
+
 
     filter.addEventListener('input', () => {
       const q = filter.value.trim().toLowerCase();
@@ -152,6 +178,7 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
     });
 
     render();
+    document.fonts.ready.then(render); // re-measure once Valley Sans has loaded
   </script>
 
   <style is:global>
@@ -165,15 +192,14 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
       --green-soft: #d9e9df;
       --gold: #b8871c;
       --gold-soft: #f1e4c2;
-      --serif: 'Fraunces', Georgia, serif;
-      --sans: 'Public Sans', system-ui, sans-serif;
+      --font: 'Valley Sans', system-ui, sans-serif;
     }
     * { box-sizing: border-box; }
-    html { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 17px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+    html { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 17px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
     body { margin: 0; }
     a { color: inherit; text-decoration-color: var(--line); text-underline-offset: 3px; }
     a:hover { text-decoration-color: var(--green); }
-    h2, h3 { font-family: var(--serif); font-weight: 500; line-height: 1.15; margin: 0 0 .5rem; }
+    h2, h3 { font-family: var(--font); font-weight: 500; line-height: 1.15; margin: 0 0 .5rem; }
     h2 { font-size: clamp(1.7rem, 3vw, 2.4rem); letter-spacing: -.01em; }
     h3 { font-size: 1.25rem; }
     p { margin: 0 0 1rem; max-width: 62ch; }
@@ -181,24 +207,35 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
     :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 
     .top { display: flex; justify-content: space-between; align-items: baseline; padding: 1.25rem clamp(16px, 4vw, 48px); font-size: .95rem; }
-    .mark { font-family: var(--serif); font-weight: 500; font-size: 1.4rem; letter-spacing: -.02em; }
+    .mark { font-family: var(--font); font-weight: 500; font-size: 1.4rem; letter-spacing: -.02em; }
 
     main { padding: 0 clamp(16px, 4vw, 48px) 4rem; max-width: 1200px; margin: 0 auto; }
 
     /* Hero: the sentence is the calculator */
     .hero { padding: clamp(2rem, 8vh, 6rem) 0 3rem; }
-    .sentence { font-family: var(--serif); font-weight: 300; font-size: clamp(1.9rem, 5.2vw, 4.4rem); line-height: 1.22; letter-spacing: -.015em; max-width: 22ch; margin: 0 0 1.25rem; }
+    .sentence { font-family: var(--font); font-weight: 300; font-size: clamp(1.9rem, 5.2vw, 4.4rem); line-height: 1.22; letter-spacing: -.015em; max-width: 22ch; margin: 0 0 1.25rem; }
+    #ruler { position: absolute; visibility: hidden; white-space: pre; margin: 0; font-variant-numeric: tabular-nums; }
     .field { display: inline-flex; align-items: baseline; border-bottom: 2px solid var(--ink); padding: 0 .1em; }
-    .field input, .field select {
+    .field input, .field button {
       font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; width: auto;
-      appearance: none; -webkit-appearance: none; -moz-appearance: textfield; cursor: pointer;
+      appearance: none; -webkit-appearance: none; -moz-appearance: textfield; cursor: pointer; white-space: nowrap;
     }
     .field input::-webkit-outer-spin-button, .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .field input { width: 2ch; text-align: left; cursor: text; }
-    .field select { padding: 0; }
-    .field:focus-within { border-bottom-color: var(--green); }
+    .field:has(button[aria-expanded=true]), .field:focus-within { border-bottom-color: var(--green); }
+    .dd { display: inline-block; }
+    .country-list {
+      position: fixed; z-index: 10; min-width: 12rem; max-height: 16rem;
+      overflow-y: auto; margin: 0; padding: .25rem 0; list-style: none;
+      font-family: var(--font); font-size: 1rem; font-weight: 400; line-height: 1.4;
+      background: var(--paper); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    }
+    .country-list[hidden] { display: none; }
+    .country-list li { padding: .4rem .9rem; cursor: pointer; white-space: nowrap; }
+    .country-list li:hover { background: var(--green-soft); }
+    .country-list li[aria-selected=true] { font-weight: 600; }
     .money { font-variant-numeric: tabular-nums; }
-    #result { color: var(--green); font-weight: 500; font-style: italic; white-space: nowrap; }
+    #result { color: var(--green); font-weight: 600; white-space: nowrap; }
     .why { color: var(--muted); font-size: 1.05rem; margin-bottom: 2.5rem; }
     .why b { color: var(--ink); font-weight: 500; }
 
@@ -222,12 +259,12 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
     #rows { list-style: none; margin: 0; padding: 0; }
     #rows li { border-top: 1px solid var(--line); }
     #rows li:last-child { border-bottom: 1px solid var(--line); }
-    #rows button {
+    #rows a {
       all: unset; display: grid; grid-template-columns: minmax(9rem, 16rem) 1fr 3.5rem 7rem; align-items: center; gap: 1rem;
       width: 100%; padding: .45rem 0; cursor: pointer; font-variant-numeric: tabular-nums; font-size: .95rem;
     }
-    #rows button:hover .name { color: var(--green); }
-    #rows button:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+    #rows a:hover .name { color: var(--green); }
+    #rows a:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
     .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bar { display: block; height: 10px; background: var(--paper); border-radius: 2px; overflow: hidden; }
     .bar i { display: block; height: 100%; background: var(--green); min-width: 2px; }
@@ -242,7 +279,7 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
     /* Method */
     .method { border-top: 1px solid var(--line); padding-top: 3rem; margin-top: 4rem; }
     .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 2.5rem; }
-    .formula { font-family: var(--serif); font-size: 1.3rem; padding: .75rem 1rem; background: var(--paper); border-left: 3px solid var(--green); }
+    .formula { font-family: var(--font); font-size: 1.3rem; padding: .75rem 1rem; background: var(--paper); border-left: 3px solid var(--green); }
 
     footer { padding: 2rem clamp(16px, 4vw, 48px); border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
     footer p { margin: 0; }
@@ -250,7 +287,7 @@ const cheaper = countries.filter((c) => c.ratio < 0.5).length;
     @media (max-width: 640px) {
       .ladder-head { grid-template-columns: 1fr; }
       #filter { grid-column: 1; grid-row: auto; width: 100%; }
-      #rows button { grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: .2rem .75rem; padding: .6rem 0; }
+      #rows a { grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: .2rem .75rem; padding: .6rem 0; }
       .name { grid-column: 1; }
       .price { grid-column: 2; grid-row: 1; }
       .bar { grid-column: 1 / 3; grid-row: 2; }

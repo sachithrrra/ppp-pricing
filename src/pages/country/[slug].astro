@@ -1,0 +1,70 @@
+---
+import { getCountries } from '../../lib/countries.js';
+
+export function getStaticPaths() {
+  return getCountries().map((c) => ({ params: { slug: c.slug }, props: { country: c } }));
+}
+
+const { country } = Astro.props;
+const pct = Math.round(country.ratio * 100);
+const title = `US price in ${country.name} — Purchasing Power Parity`;
+const description = `Goods and services in ${country.name} cost about ${pct}% of US prices, adjusted for purchasing power parity (World Bank data). Convert any US price to a fair local price.`;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={`https://ppp.sachithra.dev/country/${country.slug}/`} />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Valley+Sans:wght@300..700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:," />
+  <style>
+    :root { --bg: #f2f4f1; --paper: #fff; --ink: #15211b; --muted: #66736c; --line: #d7ddd8; --green: #1f6f50; --font: 'Valley Sans', system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 17px; line-height: 1.5; }
+    body { margin: 0; }
+    a { color: var(--green); }
+    .top { display: flex; justify-content: space-between; align-items: baseline; padding: 1.25rem clamp(16px, 4vw, 48px); font-size: .95rem; }
+    .mark { font-weight: 500; font-size: 1.4rem; letter-spacing: -.02em; }
+    main { padding: 0 clamp(16px, 4vw, 48px) 4rem; max-width: 700px; margin: 0 auto; }
+    h1 { font-weight: 300; font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.25; letter-spacing: -.015em; margin: 1rem 0 1.5rem; }
+    .stat { color: var(--green); font-weight: 600; }
+    .field { display: inline-flex; align-items: baseline; border-bottom: 2px solid var(--ink); padding: 0 .1em; }
+    .field input { font: inherit; color: inherit; background: none; border: 0; padding: 0; width: 4ch; text-align: left; }
+    #result { color: var(--green); font-weight: 600; }
+    .back { display: inline-block; margin-top: 2rem; }
+    footer { padding: 2rem clamp(16px, 4vw, 48px); border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+    footer p { margin: 0; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a href="/" class="mark">ppp-pricing</a>
+  </header>
+  <main>
+    <h1>Goods in {country.name} cost about <span class="stat">{pct}%</span> of US prices.</h1>
+    <p>
+      A <span class="field"><span aria-hidden="true">$</span><input id="price" type="number" min="0" step="1" value="10" aria-label="Price in US dollars" /></span>
+      product in the US should cost about <output id="result" data-ratio={country.ratio}>$0.00</output> in {country.name}, based on the World Bank's purchasing power parity data.
+    </p>
+    <p>This reflects the price level ratio for {country.name} — how many local goods a dollar actually buys there compared to the US — not the raw currency exchange rate.</p>
+    <a class="back" href="/">&larr; See every country</a>
+  </main>
+  <footer>
+    <p>Built by <a href="https://github.com/sachithrrra">sachithrrra</a>. MIT licensed. Data © World Bank, CC BY 4.0. <a href="https://github.com/sachithrrra/ppp-pricing">GitHub</a></p>
+  </footer>
+  <script>
+    const price = document.getElementById('price');
+    const result = document.getElementById('result');
+    const ratio = Number(result.dataset.ratio);
+    const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    const render = () => { result.textContent = money.format((Number(price.value) || 0) * ratio); };
+    price.addEventListener('input', render);
+    render();
+  </script>
+</body>
+</html>
