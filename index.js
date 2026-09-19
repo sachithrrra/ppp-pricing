@@ -1,6 +1,4 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const pppData = require('./data.json');
+import pppData from './data.json' with { type: 'json' };
 
 /**
  * @typedef {'none'|'currency'|'pretty'} RoundingStrategy

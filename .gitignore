@@ -1,4 +1,6 @@
 node_modules
+dist
+.astro
 *.log
 .DS_Store
 temp.zip
